@@ -1,47 +1,101 @@
-# Introduction to GitHub
+# Johny_Trade
 
-_Get started using GitHub in less than an hour._
+`Johny_Trade` — краткосрочный агент-сборщик и аналитик рыночной информации.
 
-## Welcome
+> Агент **не открывает сделки, не отправляет ордера и не гарантирует прибыль**. Он формирует объективный аналитический дайджест для краткосрочных решений.
 
-People use GitHub to build some of the most advanced technologies in the world. Whether you’re visualizing data or building a new game, there’s a whole community and set of tools on GitHub that can help you do it even better. GitHub Skills’ “Introduction to GitHub” exercise guides you through everything you need to start contributing in less than an hour.
+## Что делает агент
 
-- **Who is this for**: New developers, new GitHub users, and students.
-- **What you'll learn**: We'll introduce repositories, branches, commits, and pull requests.
-- **What you'll build**: We'll make a short Markdown file you can use as your [profile README](https://docs.github.com/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme).
-- **Prerequisites**: None. This exercise is a great introduction for your first day on GitHub.
-- **How long**: This exercise takes less than one hour to complete.
+- работает по окнам **15m, 1h, 4h**;
+- использует **1d** как контекст;
+- анализирует свежие данные (последние 24 часа), а более старые явно помечает как stale;
+- хранит данные, корреляции, COT-сигналы, новости и отчёты в SQLite;
+- ведёт журнал источников, UTC-время, `last update`, дедупликацию и проверку качества.
 
-In this exercise, you will:
+## Отслеживаемые инструменты
 
-1. Create a branch
-2. Commit a file
-3. Open a pull request
-4. Merge your pull request
+- FX: `EURUSD`, `GBPUSD`, `USDJPY`, `AUDUSD`, `USDCAD`, `USDCHF`, `NZDUSD`
+- Индикаторы: `DXY`, `XAUUSD`, `WTI`, `US10Y`, `SPX` (S&P500), `NDX` (Nasdaq100), `VIX`
 
-### How to start this exercise
+## Корреляционные группы
 
-Simply copy the exercise to your account, then give your favorite Octocat (Mona) **about 20 seconds** to prepare the first lesson, then **refresh the page**.
+Агент рассчитывает rolling correlation для периодов **20/60/120 наблюдений** и выводит:
+коэффициент, знак связи, силу, изменение к предыдущему окну и warning о нестабильности.
 
-[![](https://img.shields.io/badge/Copy%20Exercise-%E2%86%92-1f883d?style=for-the-badge&logo=github&labelColor=197935)](https://github.com/new?template_owner=skills&template_name=introduction-to-github&owner=%40me&name=skills-introduction-to-github&description=Exercise:+Introduction+to+GitHub&visibility=public)
+Ключевые пары:
 
-<details>
-<summary>Having trouble? 🤷</summary><br/>
+- `DXY ↔ EURUSD`
+- `DXY ↔ XAUUSD`
+- `DXY ↔ USDJPY`
+- `XAUUSD ↔ US10Y`
+- `USDJPY ↔ US10Y`
+- `AUDUSD ↔ USDCNH`
+- `USDCAD ↔ WTI`
+- `GBPUSD ↔ EURUSD`
+- `SPX/NDX ↔ VIX`
 
-When copying the exercise, we recommend the following settings:
+## Формулы расчёта
 
-- For owner, choose your personal account or an organization to host the repository.
+- Доходность наблюдения: `r_t = (P_t - P_{t-1}) / P_{t-1}`
+- Rolling correlation (Пирсон):
 
-- We recommend creating a public repository, since private repositories will use Actions minutes.
+`corr(X,Y) = cov(X,Y) / (std(X) * std(Y))`
 
-If the exercise isn't ready in 20 seconds, please check the [Actions](../../actions) tab.
+- COT net positioning: `net = long - short`
+- Изменение COT: `delta_net = net_current - net_previous`
 
-- Check to see if a job is running. Sometimes it simply takes a bit longer.
+## Источники данных (ожидаемые)
 
-- If the page shows a failed job, please submit an issue. Nice, you found a bug! 🐛
+- COT: официальный CFTC
+- Макро: сайты ЦБ/статистических ведомств/календари
+- Новости: BBC, Reuters, разрешённые RSS/API
+- Market data: только разрешённые API
 
-</details>
+В коде предусмотрен контроль разрешённых доменов и журнал ссылок/времени публикации/резюме.
 
----
+## Конфигурация
 
-&copy; 2026 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
+Скопируйте `.env.example` в `.env` и задайте переменные.
+
+## Запуск
+
+```bash
+python -m johny_trade --db-path johny_trade.db --payload /absolute/path/to/payload.json
+```
+
+Где `payload.json` содержит `market_snapshots`, `correlation_inputs`, `cot_positions`, `macro_events`, `news_items`.
+
+## Тесты
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Покрытие тестами:
+
+- расчёты COT;
+- rolling correlation;
+- свежесть данных;
+- дедупликация;
+- отсутствующие поля;
+- формирование финального отчёта.
+
+## Пример краткосрочного отчёта (сокращённо)
+
+```text
+1) Report time (UTC): 2026-09-29T08:55:00+00:00
+   Data freshness window: last 24 hours
+
+2) Market state summary
+   Mixed market conditions.
+
+3) Instrument table
+   instrument | direction | 15m/1h/4h | key driver | volatility | data quality
+   EURUSD | uptrend | 0.1/0.2/0.3 | DXY pullback | moderate | fresh
+
+4) DXY impact on EURUSD, XAUUSD, USDJPY
+   DXY impact requires confirmation.
+...
+14) Neutral conclusion
+   Data supports scenarios; signal absent without additional confirmation.
+```
